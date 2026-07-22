@@ -1,0 +1,15 @@
+{
+  "name": "2kw",
+  "description": "2kw.ai plugins for Claude Code",
+  "owner": {
+    "name": "Manfred Kunze Development"
+  },
+  "plugins": [
+    {
+      "name": "2kw",
+      "description": "Observe and debug your AI workloads on 2kw.ai from inside your coding agent",
+      "version": "0.1.0",
+      "source": "./"
+    }
+  ]
+}

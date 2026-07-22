@@ -1,0 +1,25 @@
+{
+  "name": "2kw",
+  "description": "Observe and debug your AI workloads on 2kw.ai from inside your coding agent",
+  "version": "0.1.0",
+  "author": {
+    "name": "Manfred Kunze Development"
+  },
+  "homepage": "https://2kw.ai",
+  "repository": "https://github.com/2kw-ai/claude-plugin",
+  "keywords": [
+    "observability",
+    "tracing",
+    "opentelemetry",
+    "llm",
+    "extraction"
+  ],
+  "mcpServers": {
+    "2kw": {
+      "command": "npx",
+      "args": [
+        "@2kw/ai-mcp-server@latest"
+      ]
+    }
+  }
+}
