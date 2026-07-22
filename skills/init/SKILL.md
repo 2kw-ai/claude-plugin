@@ -1,15 +1,15 @@
 ---
 name: init
-description: Use when setting up 2kw.ai in a project, when a 2kw skill reports missing or invalid credentials, or when the user asks to log in to, configure, or check their connection to 2kw. Verifies the CLI is installed at a supported version and that credentials work.
+description: This skill should be used when the user asks to "set up 2kw", "connect to 2kw", "log in to 2kw", "configure 2kw", "check my 2kw connection", "am I authenticated to 2kw", or "install the 2kw CLI". Also use when another 2kw skill reports missing, expired, or invalid credentials. Verifies the 2kw CLI is installed at a supported version and that stored credentials authenticate against the live API.
 ---
 
 # 2kw:init
 
 Gets this machine from nothing to a verified, working 2kw setup.
 
-**Be fast on the happy path.** If credentials already work and the CLI is current, this is
-one command and a one-line confirmation. Do not re-run setup that is already done, and do
-not ask questions you can answer by looking.
+**Be fast on the happy path.** When credentials already work and the CLI is current, this
+is one command and a one-line confirmation. Do not re-run setup that is already done, and
+do not ask questions that inspection can answer.
 
 ## Step 1 — Is the CLI present?
 
@@ -37,8 +37,7 @@ Minimum supported version: **1.0.0**
 Compare the output of `2kw --version` against that. If it is lower, tell the user which
 version they have, which is required, and offer `npm i -g @2kw/ai@latest`.
 
-Record the confirmed version in your working context so later skills in this session do
-not re-check it.
+Record the confirmed version so later 2kw skills in this session do not re-check it.
 
 ## Step 3 — Do credentials work?
 
@@ -70,7 +69,7 @@ This is interactive. Let the user complete it, then re-run Step 3 to confirm.
 ## Step 5 — Credentials present but rejected
 
 `2kw auth status` collapses several distinct causes into one error today, so diagnose
-before advising. Report which of these is most likely, based on what you can observe:
+before advising. Report which of these is most likely, based on the observable evidence:
 
 - **Wrong or revoked key** — the stored `apiKeyPreview` does not match the key the user
   expects, or the key was rotated. Fix: `2kw auth login`.
