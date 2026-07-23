@@ -94,19 +94,32 @@ This is interactive. Let the user complete it, then re-run Step 3 to confirm.
 
 ## Step 5 — Credentials present but rejected
 
-`2kw auth status` collapses several distinct causes into one error today, so diagnose
-before advising. Report which of these is most likely, based on the observable evidence:
+`2kw auth status` returns one identical error — `"Failed to validate credentials"` — for a
+wrong key, insufficient org permissions, and an unreachable host alike. It exposes no HTTP
+status. So this step cannot truly diagnose the cause; it can check the one thing that *is*
+observable, then offer fixes in likelihood order.
 
-- **Wrong or revoked key** — the stored `apiKeyPreview` does not match the key the user
-  expects, or the key was rotated. Fix: `2kw auth login`.
-- **Insufficient permissions for the organization** — the key is valid but lacks access.
-  Fix: check the key's organization in the 2kw UI.
-- **Base URL unreachable** — `baseUrl` in the output is wrong, or the host is down. Check
-  it against the expected environment. `2kw context list` shows configured environments
-  and `2kw context use <name>` switches between them.
+**First, check the observable — the `baseUrl` in the output:**
 
-Never report a generic "authentication failed". Always name the most likely cause and the
-single command that fixes it.
+- If `baseUrl` is wrong or points at an unexpected environment, that is the problem. Show
+  the configured environments with `2kw context list` and switch with
+  `2kw context use <name>`. A host being down looks the same, so also confirm the host is
+  reachable if the URL looks correct.
+
+**If `baseUrl` looks right, the key is being rejected and the CLI cannot say why.** Offer
+the two fixes in order, rather than guessing which applies:
+
+1. `2kw auth login` — re-authenticate. This resolves a wrong, expired, or rotated key,
+   which is the common case.
+2. If re-authenticating does not help, the key is valid but its organization lacks access.
+   Direct the user to check the key's organization in the 2kw UI.
+
+Never report a bare "authentication failed". Name what was checked (the base URL) and give
+the ordered next step.
+
+> A precise diagnosis is not possible until the CLI surfaces the failure kind (401 / 403 /
+> unreachable) — tracked in issue #256. Once it does, this step should branch on that kind
+> instead of offering an ordered list.
 
 ## Where credentials live
 
