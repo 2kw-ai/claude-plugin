@@ -18,14 +18,26 @@ do not ask questions that inspection can answer.
 ```
 
 - **Prints a version** → continue to Step 2.
-- **Command not found** → the CLI is not installed. Offer the user a choice, and say why:
+- **Command not found** → the CLI is not installed. A global install is required to
+  continue:
 
-  - `npm i -g @2kw/ai` — recommended. Fast, and every later step is a direct call.
-  - `npx @2kw/ai@latest` — no install, but pays startup cost on every command, which is
-    noticeable in multi-step skills.
+  ```bash
+  npm i -g @2kw/ai
+  ```
 
-  Install, then re-run `2kw --version` to confirm. If the user declines both, stop and say
-  the remaining 2kw skills cannot run without the CLI.
+  Then re-run `2kw --version` to confirm.
+
+  Why a global install rather than `npx`: this skill and every other 2kw skill call the
+  bare `2kw` command (`2kw auth status`, `2kw context list`, …). `npx @2kw/ai@latest` does
+  not put `2kw` on PATH, so the next step would hit "command not found" again. Making the
+  whole flow work through npx would mean prefixing every command with
+  `npx -p @2kw/ai@latest 2kw` — the `-p` form is required because the package ships three
+  bins (`2kw`, `backbone`, `bb`) and none matches the package name, so a bare
+  `npx @2kw/ai` cannot reliably pick one — and each call would pay npx's resolution cost.
+
+  A one-off `npx -p @2kw/ai@latest 2kw --version` is fine to confirm connectivity, but do
+  not proceed past this step on npx alone. If the user cannot install globally, stop and
+  say the 2kw skills need `2kw` on PATH.
 
 The binary is also available as `bb` and `backbone`. Prefer `2kw` — the aliases exist for
 backwards compatibility.
