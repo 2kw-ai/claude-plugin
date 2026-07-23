@@ -32,10 +32,24 @@ backwards compatibility.
 
 ## Step 2 — Is the version supported?
 
-Minimum supported version: **1.0.0**
+Minimum supported major version: **4** (the first published `@2kw/ai` release line;
+everything this skill uses — `auth status --json`, `auth login`, `context` — exists from
+`4.x` onward).
 
-Compare the output of `2kw --version` against that. If it is lower, tell the user which
-version they have, which is required, and offer `npm i -g @2kw/ai@latest`.
+Compare by **major version**, not by string. The output may carry a prerelease suffix
+(`4.0.0-dev.2`, `5.1.0-dev.7`) because a `@dev` channel is published, and a plain string
+comparison mishandles those — `"4.0.0-dev.2" < "4.0.0"` is true, which would wrongly
+reject a working dev build.
+
+To check:
+
+1. Take the version string from `2kw --version` (e.g. `5.1.0-dev.7`).
+2. Read the leading integer before the first `.` — that is the major version.
+3. Supported when the major is **4 or greater**. The `-dev.N` / `-rc.N` suffix does not
+   disqualify a build whose major meets the floor.
+
+If the major is below 4, tell the user their version and that 4.x or later is required,
+and offer `npm i -g @2kw/ai@latest`.
 
 Record the confirmed version so later 2kw skills in this session do not re-check it.
 
@@ -51,7 +65,7 @@ Interpret the JSON:
 
 | Output | Meaning | Action |
 |---|---|---|
-| `{"authenticated": true, ...}` | Working credentials | Report success with `baseUrl` and `modelCount`. **Done.** |
+| `{"authenticated": true, ...}` | Working credentials | Report success with `baseUrl`, `modelCount`, and `context` if present. **Done.** |
 | `{"authenticated": false}` with no `baseUrl` | No credentials configured | Go to Step 4 |
 | `{"authenticated": false, "error": "Failed to validate credentials", ...}` | Credentials present but rejected | Go to Step 5 |
 
@@ -97,8 +111,14 @@ Never write credentials into these files yourself. Use `2kw auth login` and
 
 ## Reporting
 
-On success, one line:
+On success, one line. Include the `context` when `auth status` reports one, since a user
+with several environments needs to see which org they just connected to — the `default`
+and `staging` contexts point at the same dev org while production is a separate org, so
+the base URL alone is not enough to tell them apart:
 
-> Connected to 2kw at `<baseUrl>` — `<modelCount>` models available, CLI `<version>`.
+> Connected to 2kw at `<baseUrl>` (context `<context>`) — `<modelCount>` models available,
+> CLI `<version>`.
+
+When `auth status` reports no `context` (a single-context setup), omit that clause.
 
 On failure, state which step failed, what was observed, and the single next command to run.
