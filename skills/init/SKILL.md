@@ -79,7 +79,7 @@ Interpret the JSON:
 |---|---|---|
 | `{"authenticated": true, ...}` | Working credentials | Report success with `baseUrl`, `modelCount`, and `context` if present. **Done.** |
 | `{"authenticated": false}` with no `baseUrl` | No credentials configured | Go to Step 4 |
-| `{"authenticated": false, "error": "Failed to validate credentials", ...}` | Credentials present but rejected | Go to Step 5 |
+| `{"authenticated": false, "error": "Failed to validate credentials", ...}` | Credentials present but rejected (may include a `failureKind`) | Go to Step 5 |
 
 ## Step 4 — No credentials
 
@@ -94,32 +94,30 @@ This is interactive. Let the user complete it, then re-run Step 3 to confirm.
 
 ## Step 5 — Credentials present but rejected
 
-`2kw auth status` returns one identical error — `"Failed to validate credentials"` — for a
-wrong key, insufficient org permissions, and an unreachable host alike. It exposes no HTTP
-status. So this step cannot truly diagnose the cause; it can check the one thing that *is*
-observable, then offer fixes in likelihood order.
+**If the output has a `failureKind` field, branch on it — it is a precise diagnosis:**
 
-**First, check the observable — the `baseUrl` in the output:**
+| `failureKind` | Meaning | Tell the user |
+|---|---|---|
+| `UNAUTHORIZED` | The key was rejected (401) — wrong, expired, or rotated | Run `2kw auth login` to re-authenticate. |
+| `FORBIDDEN` | The key is valid but its organization lacks access (403) | Check the key's organization in the 2kw UI; a different key or role is needed. |
+| `UNREACHABLE` | The host was never reached — wrong base URL or the host is down | Check `baseUrl`. `2kw context list` shows configured environments; `2kw context use <name>` switches. Confirm the host is up. |
+| `UNKNOWN` | An unexpected failure | Run `2kw auth login`; if it persists, check `baseUrl` and connectivity. |
 
-- If `baseUrl` is wrong or points at an unexpected environment, that is the problem. Show
-  the configured environments with `2kw context list` and switch with
-  `2kw context use <name>`. A host being down looks the same, so also confirm the host is
-  reachable if the URL looks correct.
+Report the single matching cause and its fix. Do not offer the others.
 
-**If `baseUrl` looks right, the key is being rejected and the CLI cannot say why.** Offer
-the two fixes in order, rather than guessing which applies:
+**If there is no `failureKind` field** (an older CLI that predates it), fall back to the
+ordered approach. The CLI then returns one identical error for a wrong key, missing
+permissions, and an unreachable host alike, so:
 
-1. `2kw auth login` — re-authenticate. This resolves a wrong, expired, or rotated key,
-   which is the common case.
-2. If re-authenticating does not help, the key is valid but its organization lacks access.
-   Direct the user to check the key's organization in the 2kw UI.
+1. Check `baseUrl` first — if it is wrong or points at an unexpected environment, fix that
+   with `2kw context use <name>`.
+2. If `baseUrl` looks right, run `2kw auth login` (resolves a wrong/expired key — the
+   common case).
+3. If re-authenticating does not help, the key likely lacks org access — direct the user
+   to check its organization in the 2kw UI.
 
-Never report a bare "authentication failed". Name what was checked (the base URL) and give
-the ordered next step.
-
-> A precise diagnosis is not possible until the CLI surfaces the failure kind (401 / 403 /
-> unreachable) — tracked in issue #256. Once it does, this step should branch on that kind
-> instead of offering an ordered list.
+Either way: never report a bare "authentication failed". Name the cause and the next
+command.
 
 ## Where credentials live
 

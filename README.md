@@ -22,6 +22,7 @@ Then run `2kw:init` to connect your account.
 | Skill | What it does |
 |---|---|
 | `2kw:init` | Verifies the CLI is installed at a supported version and that your credentials work |
+| `2kw:trace-claude-code` | Exports Claude Code's OpenTelemetry traces to your 2kw org so your coding sessions show up in the trace viewer (minimal tier — no prompt or tool content) |
 
 ## Development
 
