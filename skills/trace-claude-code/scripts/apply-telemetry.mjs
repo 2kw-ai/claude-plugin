@@ -1,20 +1,26 @@
 #!/usr/bin/env node
-// Apply the MINIMAL 2kw telemetry configuration to Claude Code's settings.json.
+// Apply (or remove) 2kw telemetry configuration in Claude Code's settings.json.
 //
-// Minimal tier = trace structure and timings only. No prompt content, no tool
-// content. Any content/enhanced flags left over from another setup are removed
-// so the tier's "no content" guarantee actually holds.
+// Tiers — the user picks one; the difference is only how much CONTENT is
+// exported. All tiers export trace structure and timings.
+//   minimal   traces only. No prompt content, no tool content.
+//   standard  + the user's own prompts.
+//   full      + tool details and tool CONTENT (file contents Claude reads,
+//               including files the user did not author).
+//
+// Whatever flags a tier does NOT include are actively removed, so the chosen
+// tier's guarantee holds even over a previous, higher setup.
 //
 // Credentials are read from the active bb context via `2kw config list --json`,
 // never passed as arguments, so the API key never lands in a process list or
-// shell history. The key IS written into settings.json's env block, though —
-// see the SECURITY note the script prints. Issue #228 replaces that with an
-// otelHeadersHelper so no plaintext token is stored.
+// shell history. The key IS written into settings.json's env block — see the
+// SECURITY note. Issue #228 replaces that with an otelHeadersHelper.
 //
 // Usage:
-//   node apply-telemetry.mjs [--dry-run] [--settings <path>]
+//   node apply-telemetry.mjs --tier <minimal|standard|full> [--dry-run] [--settings <path>]
+//   node apply-telemetry.mjs --off [--dry-run] [--settings <path>]
 //
-// Exit codes: 0 applied (or dry-run), 2 no working credentials, 1 other error.
+// Exit codes: 0 ok/dry-run, 2 no credentials, 1 other error (incl. bad args).
 
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from "node:fs";
@@ -23,14 +29,17 @@ import { join, dirname } from "node:path";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
+const off = args.includes("--off");
+const tierIdx = args.indexOf("--tier");
+const tier = tierIdx !== -1 ? args[tierIdx + 1] : off ? null : "minimal";
 const settingsIdx = args.indexOf("--settings");
 const settingsPath =
   settingsIdx !== -1 && args[settingsIdx + 1]
     ? args[settingsIdx + 1]
     : join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "settings.json");
 
-// Keys this skill owns. Set on apply.
-const MANAGED = (baseUrl, key) => ({
+// Base trace-export keys, common to every tier. Owned by this skill.
+const BASE = (baseUrl, key) => ({
   CLAUDE_CODE_ENABLE_TELEMETRY: "1",
   OTEL_TRACES_EXPORTER: "otlp",
   OTEL_METRICS_EXPORTER: "none",
@@ -42,34 +51,45 @@ const MANAGED = (baseUrl, key) => ({
   OTEL_RESOURCE_ATTRIBUTES: "service.name=claude-code",
 });
 
-// Content/enhanced flags removed at the minimal tier so no prompt or tool
-// content is ever exported, even if a previous setup enabled them.
-const REMOVED_AT_MINIMAL = [
+// Optional content/enhanced flags. Each tier enables a subset; the rest are
+// removed. OTEL_LOG_ASSISTANT_RESPONSES is never enabled — it rides the logs
+// signal, which 2kw does not ingest, so it is a no-op (kept here only so an
+// old setup's copy gets cleaned up).
+const TIER_FLAGS = {
+  minimal: {},
+  standard: { OTEL_LOG_USER_PROMPTS: "1" },
+  full: {
+    CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: "1",
+    OTEL_LOG_USER_PROMPTS: "1",
+    OTEL_LOG_TOOL_DETAILS: "1",
+    OTEL_LOG_TOOL_CONTENT: "1",
+  },
+};
+const ALL_OPTIONAL_FLAGS = [
   "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
   "OTEL_LOG_USER_PROMPTS",
   "OTEL_LOG_TOOL_DETAILS",
   "OTEL_LOG_TOOL_CONTENT",
   "OTEL_LOG_ASSISTANT_RESPONSES",
 ];
+const BASE_KEYS = Object.keys(BASE("x", "x"));
 
 function fail(code, msg) {
   console.error(msg);
   process.exit(code);
 }
 
+if (!off && !(tier in TIER_FLAGS)) {
+  fail(1, `Unknown or missing --tier. Use one of: minimal, standard, full (or --off to remove).`);
+}
+
 function readCreds() {
   let raw;
   try {
-    // execSync goes through a shell, which resolves the `2kw` bin whether it is
-    // a plain script (unix) or a `.cmd`/`.ps1` shim (Windows). stderr is
-    // inherited so the CLI's update notice reaches the terminal without
-    // polluting the captured stdout.
     raw = execSync("2kw config list --json", { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
   } catch (e) {
     fail(2, `Could not run "2kw config list --json". Is the 2kw CLI installed and on PATH?\n${e.message ?? e}`);
   }
-  // Defensive: extract the JSON object even if anything non-JSON slips onto
-  // stdout ahead of or after it.
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
   let creds;
@@ -100,39 +120,64 @@ function writeAtomic(path, obj) {
   renameSync(tmp, path);
 }
 
-function mask(key) {
-  return key.length > 11 ? `${key.slice(0, 7)}...${key.slice(-4)}` : "sk_***";
-}
+const mask = (k) => (k.length > 11 ? `${k.slice(0, 7)}...${k.slice(-4)}` : "sk_***");
 
-const { apiKey, baseUrl } = readCreds();
 const settings = readSettings(settingsPath);
 const prevEnv = settings.env ?? {};
+let nextEnv;
 
-const managed = MANAGED(baseUrl, apiKey);
-const removed = REMOVED_AT_MINIMAL.filter((k) => k in prevEnv);
-const hadOtel = "OTEL_TRACES_EXPORTER" in prevEnv || removed.length > 0;
+if (off) {
+  // Remove every key this skill manages; keep everything else untouched.
+  nextEnv = { ...prevEnv };
+  for (const k of [...BASE_KEYS, ...ALL_OPTIONAL_FLAGS]) delete nextEnv[k];
+  console.log(`Target: ${settingsPath}`);
+  console.log(`Action: OFF — removing all 2kw telemetry keys.`);
+} else {
+  const { apiKey, baseUrl } = readCreds();
+  const enabled = TIER_FLAGS[tier];
+  // Set base + this tier's flags; remove any optional flag not in this tier.
+  nextEnv = { ...prevEnv, ...BASE(baseUrl, apiKey), ...enabled };
+  for (const k of ALL_OPTIONAL_FLAGS) if (!(k in enabled)) delete nextEnv[k];
 
-// Merge: preserve every unrelated key; set managed keys; drop content flags.
-const nextEnv = { ...prevEnv, ...managed };
-for (const k of REMOVED_AT_MINIMAL) delete nextEnv[k];
-const next = { ...settings, env: nextEnv };
+  const stripped = ALL_OPTIONAL_FLAGS.filter((k) => !(k in enabled) && k in prevEnv);
+  console.log(`Target: ${settingsPath}`);
+  console.log(`Tier:   ${tier} — ${describeTier(tier)}`);
+  console.log(`Endpoint: ${nextEnv.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}`);
+  console.log(`Auth:   Authorization=Bearer ${mask(apiKey)}`);
+  if (stripped.length) console.log(`Note:   removed flags not in this tier: ${stripped.join(", ")}.`);
+}
 
-console.log(`Target: ${settingsPath}`);
-console.log(`Tier:   minimal (traces only — no prompt or tool content)`);
-console.log(`Endpoint: ${managed.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}`);
-console.log(`Auth:   Authorization=Bearer ${mask(apiKey)}`);
-if (hadOtel) console.log(`Note:   replaced an existing telemetry block${removed.length ? `; removed content/enhanced flags: ${removed.join(", ")}` : ""}.`);
+// If the env object is now empty, drop it entirely rather than leaving `{}`.
+const next = { ...settings };
+if (Object.keys(nextEnv).length === 0) delete next.env;
+else next.env = nextEnv;
 
 if (dryRun) {
   console.log("\n--dry-run — resulting env block:\n");
-  console.log(JSON.stringify(nextEnv, null, 2));
+  console.log(JSON.stringify(next.env ?? {}, null, 2));
   process.exit(0);
 }
 
 writeAtomic(settingsPath, next);
 
-console.log("\nApplied. Two things:");
-console.log("  1. RESTART Claude Code. Telemetry env is read at process start, so this");
-console.log("     session is NOT yet exporting — the change takes effect next launch.");
-console.log("  2. SECURITY: your API key is now in plaintext in settings.json. Issue #228");
-console.log("     replaces this with a headers-helper script so no token is stored.");
+if (off) {
+  console.log("\nRemoved. RESTART Claude Code for it to stop exporting (env is read at startup).");
+} else {
+  console.log("\nApplied. Two things:");
+  console.log("  1. RESTART Claude Code. Telemetry env is read at process start, so this");
+  console.log("     session is NOT yet exporting — the change takes effect next launch.");
+  console.log("  2. SECURITY: your API key is now in plaintext in settings.json. Issue #228");
+  console.log("     replaces this with a headers-helper script so no token is stored.");
+  if (tier === "full") {
+    console.log("  3. FULL tier exports tool CONTENT — file contents Claude reads, including");
+    console.log("     files you did not author. Do not use it on repos you cannot share.");
+  }
+}
+
+function describeTier(t) {
+  return {
+    minimal: "traces only, no prompt or tool content",
+    standard: "traces + your prompts, no tool content",
+    full: "traces + prompts + tool content (file contents Claude reads)",
+  }[t];
+}

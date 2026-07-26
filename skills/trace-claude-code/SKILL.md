@@ -1,18 +1,26 @@
 ---
 name: trace-claude-code
-description: This skill should be used when the user asks to "trace Claude Code", "see what Claude Code is doing", "instrument Claude Code", "export Claude Code traces to 2kw", "observe my coding agent", "send Claude Code telemetry to 2kw", or "enable 2kw tracing for Claude Code". Configures Claude Code to export OpenTelemetry traces to the user's 2kw organization at the minimal tier (structure and timings, no prompt or tool content), then verifies spans arrive.
+description: This skill should be used when the user asks to "trace Claude Code", "see what Claude Code is doing", "instrument Claude Code", "export Claude Code traces to 2kw", "observe my coding agent", "send Claude Code telemetry to 2kw", "enable 2kw tracing for Claude Code", or to "turn off"/"stop"/"disable 2kw tracing". Configures Claude Code to export OpenTelemetry traces to the user's 2kw organization at a consented tier (minimal, standard, or full), verifies spans arrive, and can fully remove the configuration.
 ---
 
 # 2kw:trace-claude-code
 
 Points Claude Code's OpenTelemetry trace export at the user's 2kw organization, so their
-coding sessions show up in the 2kw trace viewer. This applies the **minimal tier**:
-span structure and timings only — no prompt content, no tool content.
+coding sessions show up in the 2kw trace viewer. The user picks how much is captured; all
+tiers export trace structure and timings.
+
+| Tier | Captures | Does not capture |
+|---|---|---|
+| `minimal` | structure, timings | prompts, tool content |
+| `standard` *(recommended)* | + the user's own prompts | tool content |
+| `full` | + tool content — **file contents Claude reads, including files the user did not author** | — |
 
 The flow has two phases because telemetry env is read at process start:
 
-1. **Apply** the configuration, then the user restarts Claude Code.
+1. **Choose a tier and apply** the configuration, then the user restarts Claude Code.
 2. **Verify** that spans arrive, after the restart.
+
+To remove telemetry entirely, see **Uninstall** below.
 
 ## Phase 1 — Apply
 
@@ -27,32 +35,38 @@ Do not instrument with broken credentials. Run:
 If `authenticated` is not `true`, stop and run the `2kw:init` skill (or `2kw auth login`)
 first, then return here.
 
-### Step 2 — Preview the change
+### Step 2 — Get consent on a tier
 
-This edits the user's **global** `~/.claude/settings.json` and turns on data export to
-their 2kw org, so show what will change before writing it:
+This edits the user's **global** `~/.claude/settings.json` — it applies to **every project
+they open, including client work** — and turns on data export to their 2kw org. So this is
+a consent step, and it is asked once here, not per session.
+
+Present the three tiers from the table above and let the user choose. Recommend
+`standard`. Call out the `standard` → `full` boundary explicitly, because it is the one
+that matters: **prompts are the user's own words; `full` also sends the contents of files
+Claude reads — a customer CSV, a colleague's source, a `.env` that happened to be open.**
+Only apply `full` if the user deliberately asks for it.
+
+Preview the exact change before writing it (this does not modify anything):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/trace-claude-code/scripts/apply-telemetry.mjs" --dry-run
+node "${CLAUDE_PLUGIN_ROOT}/skills/trace-claude-code/scripts/apply-telemetry.mjs" --tier <tier> --dry-run
 ```
 
 The script reads the active-context credentials itself (via `2kw config list --json`), so
-no key needs to be passed or pasted. The dry run prints the resulting `env` block and
-notes if it will replace an existing telemetry block or remove content/enhanced flags.
+no key is passed or pasted. The dry run prints the resulting `env` block and notes any
+flags it will remove (e.g. downgrading from a previous higher tier). Show the user the
+target file, the endpoint, and the tier, and get their confirmation before Step 3.
 
-Show the user the target file, the endpoint, and — if the note says an existing block is
-being replaced — that any prompt/tool-content capture they had will be turned **off** by
-the minimal tier. Get their confirmation before Step 3.
-
-### Step 3 — Apply
+### Step 3 — Apply the chosen tier
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/trace-claude-code/scripts/apply-telemetry.mjs"
+node "${CLAUDE_PLUGIN_ROOT}/skills/trace-claude-code/scripts/apply-telemetry.mjs" --tier <tier>
 ```
 
-The script merges the minimal block into `settings.json`, preserving every unrelated key,
-and is safe to re-run (idempotent). It refuses to touch a `settings.json` that is not
-valid JSON.
+The script merges the block into `settings.json`, preserving every unrelated key, sets
+exactly the chosen tier's flags (removing any from a higher tier), and is safe to re-run
+(idempotent). It refuses to touch a `settings.json` that is not valid JSON.
 
 ### Step 4 — Tell the user to restart
 
@@ -76,18 +90,30 @@ spans are arriving:
   rejecting the spans. Re-run `2kw auth status --json` to confirm the base URL is the same
   org whose viewer is being checked.
 
-## What this tier does and does not capture
+## Uninstall
 
-- **Captured:** trace and span structure, operation names, timings, span status.
-- **Not captured:** user prompts and tool/file content — the `OTEL_LOG_*` flags are
-  deliberately omitted, and any that were already set are removed. Richer tiers
-  (prompts, tool content) are a separate, explicitly-consented step.
+To stop exporting and remove the configuration entirely:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/trace-claude-code/scripts/apply-telemetry.mjs" --off
+```
+
+This removes every key the skill manages (base trace keys and all content flags),
+preserving every unrelated key in `settings.json`. As with applying, it takes effect on the
+next Claude Code restart — tell the user to relaunch.
+
+## What each tier captures
+
+- **All tiers:** trace and span structure, operation names, timings, span status.
+- **`standard` adds** the user's prompts; **`full` adds** tool details and tool content
+  (file contents Claude reads). `minimal` sends neither, and whatever a chosen tier omits
+  is actively removed from a prior setup.
 - **Token and cost metrics** ride the OpenTelemetry *metrics* signal, which 2kw does not
   ingest yet (issue #222). Until then, this shows what the agent *did*, not what it spent.
 
 ## Security note
 
-At this tier the API key is written in plaintext into `settings.json`'s
+The API key is written in plaintext into `settings.json`'s
 `OTEL_EXPORTER_OTLP_TRACES_HEADERS`. That is a known interim state — issue #228 replaces it
 with a headers-helper script so no token is stored. Mention this to the user if they are on
 a shared or synced machine.
