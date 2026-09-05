@@ -1,7 +1,7 @@
 {
   "name": "2kw",
   "description": "Observe and debug your AI workloads on 2kw.ai from inside your coding agent",
-  "version": "6.0.0-dev.24",
+  "version": "6.0.0",
   "author": {
     "name": "Manfred Kunze Development"
   },
