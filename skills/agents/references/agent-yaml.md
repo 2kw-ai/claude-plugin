@@ -17,7 +17,7 @@ skills: []                       # optional skill bindings
 
 ## Versions and labels
 
-- A change to `model` or `models` (order counts), `instructions`, `tools`, `hitlPolicy`, `options` or `skills` publishes a new version and moves the `latest` label. Runs use `latest` unless a label is named (`agent@prod`). A run that paused is decided with the same label: `2kw agents decide agent@prod --response …`.
+- A change to `model` or `models` (order counts), `instructions`, `tools`, `hitlPolicy`, `options` or `skills` publishes a new version and moves the `latest` label. Runs use `latest` unless a label is named (`agent@prod`). A run that paused is decided with the same label and `#model`: `2kw agents decide agent@prod --response …` (`agent@prod#<model>` if the run used `--model <model>`).
 - A change to `description` alone updates the agent without a new version.
 - `apply --label prod` also points `prod` at the resulting version.
 - The file is the full desired state: a tool removed from the file is removed from the agent.

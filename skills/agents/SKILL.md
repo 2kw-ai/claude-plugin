@@ -56,12 +56,12 @@ The result is a run envelope: `status`, `text`, `responseId`, `conversationId`, 
 
 ## Decide approvals
 
-Every pending approval of a paused response must be decided in the same call. Ids are the `approvalId` values from `pendingApprovals`. Pass the agent exactly as the run did, with the same `@label` (`invoice-checker@prod` if the run used `invoice-checker@prod`); the envelope's `next` already has it. A different label continues on another version of the agent.
+Every pending approval of a paused response must be decided in the same call. Ids are the `approvalId` values from `pendingApprovals`. Pass the agent exactly as the run did, with the same `@label` and `#model` (`invoice-checker@prod#gpt-5.1` if the run used `invoice-checker@prod --model gpt-5.1`); the envelope's `next` already has both. A different label continues on another version of the agent; a missing `#model` continues on the agent's default model.
 
 ```bash
-2kw agents decide <agent>[@label] --response <responseId> --approve-all --json
-2kw agents decide <agent>[@label] --response <responseId> --reject-all --reason "<user's reason>" --json
-2kw agents decide <agent>[@label] --response <responseId> --approve <approvalId> --reject <approvalId> --reason "<reason>" --json
+2kw agents decide <agent>[@label][#model] --response <responseId> --approve-all --json
+2kw agents decide <agent>[@label][#model] --response <responseId> --reject-all --reason "<user's reason>" --json
+2kw agents decide <agent>[@label][#model] --response <responseId> --approve <approvalId> --reject <approvalId> --reason "<reason>" --json
 ```
 
 - `--reason` is recorded on every decision in the call, approvals included. Tell the user when they give a reason for a rejection and approve something in the same call.
