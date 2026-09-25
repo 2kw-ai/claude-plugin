@@ -41,13 +41,17 @@ Write the user's task to a temporary file (avoids shell-quoting problems with qu
 
 To continue the same thread later, add `--conversation <conversationId>` from the previous result.
 
-The result is a run envelope: `status`, `text`, `responseId`, `conversationId`, `toolCalls`, `pendingApprovals`, `pendingToolCalls`, `incompleteReason`, `next`.
+The result is a run envelope: `status`, `mode`, `text`, `responseId`, `conversationId`, `toolCalls`, `pendingApprovals`, `pendingToolCalls`, `incompleteReason`, `next`.
+
+### Conversation mode
+
+Add `--mode plan` when the user asks the agent to look without changing anything, and `--mode ask` when the user wants to approve every call that needs approval themselves. Pass `--mode auto` only when the user names it. Never pick a mode on your own: without `--mode` the conversation keeps the mode it has. The mode is stored on the conversation, so it also applies to later runs with `--conversation` and to `decide`.
 
 ## Branch on the exit code
 
 | Exit | Meaning | Do |
 |---|---|---|
-| 0 | completed | Give the user `text`. Mention the tools it used (`toolCalls`) in one line. |
+| 0 | completed | Give the user `text`. Mention the tools it used (`toolCalls`) in one line, and the mode it ran under when `mode` is not `null`. |
 | 3 | paused for approval | Show each entry of `pendingApprovals`: `tool`, `policyClass`, `arguments`, and `reason` when present (why the request was escalated to a human). Ask the user to approve or reject each one. Then run `decide` (below). Never decide for the user. |
 | 4 | needs client tool output | Tell the user the agent wants a tool that runs in a client application (`pendingToolCalls`), which the CLI cannot provide. Stop. |
 | 5 | incomplete | Tell the user the run stopped early (`incompleteReason`, usually the tool-iteration limit) and show `text` so far. Offer to continue with `--conversation`. |
@@ -67,6 +71,7 @@ Every pending approval of a paused response must be decided in the same call. Id
 - `--reason` is recorded on every decision in the call, approvals included. Tell the user when they give a reason for a rejection and approve something in the same call.
 - `--remember` is sent only on the calls this `decide` approves: `--approve A --reject B --remember` remembers only A's tool. Use it only when the user wants to stop being asked for the approved tools in this conversation; otherwise leave it off. It is refused when an approved call is destructive.
 - If `decide` fails with `code` `approval_hmac_mismatch`, `unknown_approval_id` or `invalid_approval_decision`, or with `No pending approvals`, do not retry it. See what is still open with `2kw agents approvals --agent <agent id> --status pending --json` (the agent's `id` from the `2kw agents list --search <name>` table, not its name).
+- If `decide` fails with `code` `conversation_in_plan_mode`, the conversation is in plan mode, which refuses approving a call that could change something; the run is still paused. Tell the user and ask whether to leave plan mode. Only on their yes, run the same `decide` again with `--mode ask` added. Never add `--mode` to a `decide` on your own, and approving a call is not a yes to leaving plan mode.
 
 The result is a new run envelope — branch on its exit code again; it can pause again.
 
