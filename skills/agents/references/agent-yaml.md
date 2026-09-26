@@ -39,7 +39,7 @@ Any other `type` (or none) with a `name` is a client tool: the run pauses (exit 
 
 Never author `backbone.tool_search`, `backbone.skill_read` or `web_search`.
 
-`annotations: { readOnlyHint: bool, destructiveHint: bool }` — both keys required when present. They classify the call for the approval policy.
+`annotations: { readOnlyHint: bool, destructiveHint: bool, openWorldHint?: bool }` — the first two keys are required when present; they classify the call for the approval policy. `openWorldHint: false` says the tool does not reach outside the system it belongs to (no e-mail, payment network or other company). Set it only where that is true.
 
 ## hitlPolicy (approvals)
 
@@ -57,6 +57,8 @@ hitlPolicy:
 ```
 
 `approve` pauses the run for a human (exit 3). `auto` lets the platform's auto-approver decide; until it is enabled it pauses like `approve`. `block` and `deny` refuse the call; the model is told. An `auto` rule may not match a destructive tool.
+
+For a write, `auto` reaches the auto-approver only when the tool is declared harmless (`destructiveHint: false` and `openWorldHint: false`) or an exact rule names it (`"refund_order": auto`; a glob does not name). Any other write under `auto` pauses like `approve`. For a tool that is not named, the approver still sends money, deletion and access-rights calls to a person, even when the user asked. Name a tool only when the user's clear request should be enough for it.
 
 ## skills (bindings)
 
