@@ -32,7 +32,7 @@ The `file_search` and `backbone.*` types have no `name`; `function` tools requir
 | `backbone.extraction` | `config: { schemaIds: [id, …], model?: id }` (an empty list leaves the tool unused) | Extracts fields with a schema (`2kw schemas list --json`) |
 | `backbone.document_convert` | no config | Reads attached files as text |
 | `backbone.todo` | no config | Keeps a task list while working |
-| `backbone.skill` | `skills: ["name", "name@label", "name@3"]` (1–20) | Loads skills on demand (`2kw skills list --json`) |
+| `backbone.skill` | `skills: ["name", "name@label", "name@3"]` (1–20); a plugin skill is `plugin:skill` | Loads skills on demand (`2kw skills list --json`) |
 | `function` | `name`, `endpoint` (http/https), `description?`, `parameters?` (JSON Schema), `secret?`, `annotations?` | Calls a webhook; `secret` signs the call |
 
 Any other `type` (or none) with a `name` is a client tool: the run pauses (exit 4) for an application to answer it. Do not add one for CLI use.
@@ -68,7 +68,7 @@ skills:
     ref: prod                    # label or version number; default latest
 ```
 
-At most 20, names unique. A name is a lowercase slug: `^[a-z0-9]+(-[a-z0-9]+)*$` (e.g. `po-matching`).
+At most 20, names unique. A name is a lowercase slug, `^[a-z0-9]+(-[a-z0-9]+)*$` (e.g. `po-matching`), or for a skill a plugin installed `plugin:skill` (e.g. `acme:review`), at most 201 characters. Use the name exactly as `2kw skills list --json` shows it.
 
 ## Secrets
 
