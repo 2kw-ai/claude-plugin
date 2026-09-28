@@ -35,7 +35,7 @@ The `file_search` and `backbone.*` types have no `name`; `function` tools requir
 | `backbone.skill` | `skills: ["name", "name@label", "name@3"]` (1–20); a plugin skill is `plugin:skill` | Loads skills on demand (`2kw skills list --json`) |
 | `function` | `name`, `endpoint` (http/https), `description?`, `parameters?` (JSON Schema), `secret?`, `annotations?` | Calls a webhook; `secret` signs the call |
 
-Any other `type` (or none) with a `name` is a client tool: the run pauses (exit 4) for an application to answer it. Do not add one for CLI use.
+Any other `type` (or none) with a `name` is a client tool: the run pauses (exit 4) until the caller runs it and answers the pause with `2kw agents decide … --output <callId>=@<file>` (or `--fail` when it cannot run it), within one hour.
 
 Never author `backbone.tool_search`, `backbone.skill_read` or `web_search`.
 
