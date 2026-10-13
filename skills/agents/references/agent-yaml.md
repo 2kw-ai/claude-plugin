@@ -24,7 +24,7 @@ skills: []                       # optional skill bindings
 
 ## Tools
 
-The `file_search`, `web_search`, `web_fetch` and `backbone.*` types have no `name`; `function` tools require one.
+The `file_search`, `web_search` and `backbone.*` types have no `name`; `function` tools require one.
 
 | Type | Shape | What it does |
 |---|---|---|
@@ -34,7 +34,6 @@ The `file_search`, `web_search`, `web_fetch` and `backbone.*` types have no `nam
 | `backbone.todo` | no config | Keeps a task list while working |
 | `backbone.skill` | `skills: ["name", "name@label", "name@3"]` (1–20); a plugin skill is `plugin:skill` | Loads skills on demand (`2kw skills list --json`) |
 | `web_search` | no config, or `config: { allowedDomains: [host, …] }` (up to 10 hostnames; a subdomain matches too) | Search the public web through Backbone's EU search. `config.allowedDomains` optionally restricts results. |
-| `web_fetch` | no config, or `config: { allowedDomains: [host, …] }` (up to 10 hostnames; a subdomain matches too) | Reads a web page or PDF as text, only at an address that already appeared in the conversation or in an earlier search or page. At most one per agent. |
 | `function` | `name`, `endpoint` (http/https), `description?`, `parameters?` (JSON Schema), `secret?`, `annotations?` | Calls a webhook; `secret` signs the call |
 
 Any other `type` (or none) with a `name` is a client tool: the run pauses (exit 4) until the caller runs it and answers the pause with `2kw agents decide … --output <callId>=@<file>` (or `--fail` when it cannot run it), within one hour.
