@@ -39,7 +39,7 @@ The `file_search`, `web_search`, `web_fetch` and `backbone.*` types have no `nam
 
 Any other `type` (or none) with a `name` is a client tool: the run pauses (exit 4) until the caller runs it and answers the pause with `2kw agents decide … --output <callId>=@<file>` (or `--fail` when it cannot run it), within one hour.
 
-Never author `backbone.tool_search` or `backbone.skill_read`.
+Never author `backbone.tool_search`, `backbone.tool_call`, `backbone.skill_read`, `backbone.skills_apply`, `backbone.deliver` or `backbone.view_image`: they are added at run time, and the API refuses them with `400 NON_AUTHORABLE_TOOL`.
 
 `annotations: { readOnlyHint: bool, destructiveHint: bool, openWorldHint?: bool }` — the first two keys are required when present; they classify the call for the approval policy. `openWorldHint: false` says the tool does not reach outside the system it belongs to (no e-mail, payment network or other company). Set it only where that is true.
 
