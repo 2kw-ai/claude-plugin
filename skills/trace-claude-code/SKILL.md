@@ -53,18 +53,8 @@ Preview the exact change before writing it (this does not modify anything):
 node "${CLAUDE_PLUGIN_ROOT}/skills/trace-claude-code/scripts/apply-telemetry.mjs" --tier <tier> --dry-run
 ```
 
-The script reads the active context's API key itself (via `2kw config get apiKey --reveal`),
-so no key is passed or pasted. Never print or paste the key yourself.
-
-Trace export needs an API key. If the script exits with code 2 saying the context has no
-API key, the user signed in through the browser: ask them to create an API key on their
-organization's API keys page and, **in their own terminal** (so the key never enters this
-conversation), run `2kw context create claude-code-traces --manual`, paste it there, then
-`2kw context use claude-code-traces`. Re-run the dry run, then after Step 3 have them switch
-back with `2kw context use <their context>`. If it says the CLI is too old or printed a masked key,
-have them run `npm i -g @2kw/ai`.
-
-The dry run prints the resulting `env` block and notes any
+The script reads the active-context credentials itself (via `2kw config list --json`), so
+no key is passed or pasted. The dry run prints the resulting `env` block and notes any
 flags it will remove (e.g. downgrading from a previous higher tier). Show the user the
 target file, the endpoint, and the tier, and get their confirmation before Step 3.
 
@@ -119,14 +109,14 @@ next Claude Code restart — tell the user to relaunch.
   (file contents Claude reads). `minimal` sends neither, and whatever a chosen tier omits
   is actively removed from a prior setup.
 - **Token and cost metrics** ride the OpenTelemetry *metrics* signal, which 2kw does not
-  ingest yet. Until then, this shows what the agent *did*, not what it spent.
+  ingest yet (issue #222). Until then, this shows what the agent *did*, not what it spent.
 
 ## Security note
 
 The API key is written in plaintext into `settings.json`'s
-`OTEL_EXPORTER_OTLP_TRACES_HEADERS`; the script writes the file readable by the user only.
-Mention this to the user if they are on a shared or synced machine. The dry run shows the
-key masked.
+`OTEL_EXPORTER_OTLP_TRACES_HEADERS`. That is a known interim state — issue #228 replaces it
+with a headers-helper script so no token is stored. Mention this to the user if they are on
+a shared or synced machine.
 
 ## Why the configuration looks the way it does
 
