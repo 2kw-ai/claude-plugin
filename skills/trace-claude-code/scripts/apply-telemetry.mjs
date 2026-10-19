@@ -11,10 +11,10 @@
 // Whatever flags a tier does NOT include are actively removed, so the chosen
 // tier's guarantee holds even over a previous, higher setup.
 //
-// Credentials are read from the active bb context via `2kw config list --json`,
-// never passed as arguments, so the API key never lands in a process list or
+// Credentials are read from the active 2kw context via `2kw config get`
+// (the key with `--reveal`), never passed as arguments, so the API key never lands in a process list or
 // shell history. The key IS written into settings.json's env block — see the
-// SECURITY note. Issue #228 replaces that with an otelHeadersHelper.
+// SECURITY note; an otelHeadersHelper would remove the need.
 //
 // Usage:
 //   node apply-telemetry.mjs --tier <minimal|standard|full> [--dry-run] [--settings <path>]
@@ -83,25 +83,48 @@ if (!off && !(tier in TIER_FLAGS)) {
   fail(1, `Unknown or missing --tier. Use one of: minimal, standard, full (or --off to remove).`);
 }
 
-function readCreds() {
+// `2kw config get <key> --json` → its value. `config list` masks the API key,
+// so the key comes from `config get apiKey --reveal`.
+function cliValue(args) {
+  const cmd = `2kw config get ${args} --json`;
   let raw;
   try {
-    raw = execSync("2kw config list --json", { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+    raw = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   } catch (e) {
-    fail(2, `Could not run "2kw config list --json". Is the 2kw CLI installed and on PATH?\n${e.message ?? e}`);
+    if (/unknown option/i.test(String(e.stderr))) {
+      fail(2, 'Your 2kw CLI is too old to hand out the API key. Update it: "npm i -g @2kw/ai".');
+    }
+    fail(2, `Could not run "${cmd}". Is the 2kw CLI installed and on PATH?\n${e.message ?? e}\n${e.stderr ?? ""}`);
   }
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
-  let creds;
   try {
-    creds = JSON.parse(start !== -1 && end !== -1 ? raw.slice(start, end + 1) : raw);
+    return JSON.parse(start !== -1 && end !== -1 ? raw.slice(start, end + 1) : raw).value;
   } catch {
-    fail(1, `Unexpected output from "2kw config list --json":\n${raw}`);
+    // Never echo what the --reveal call printed: it may hold the key.
+    fail(1, `Unexpected output from "${cmd}"` + (args.includes("--reveal") ? "." : `:\n${raw}`));
   }
-  if (!creds.apiKey || !creds.baseUrl) {
-    fail(2, 'No active credentials. Run "2kw auth login" (or the 2kw:init skill) first.');
+}
+
+function readCreds() {
+  const baseUrl = cliValue("baseUrl");
+  if (!baseUrl) fail(2, 'No active credentials. Run "2kw auth login" (or the 2kw:init skill) first.');
+  const apiKey = cliValue("apiKey --reveal");
+  if (!apiKey) {
+    // Browser sign-in holds a short-lived session, not a key the exporter could send.
+    fail(
+      2,
+      "The active 2kw context has no API key (it signed in through the browser), and trace\n" +
+        "export needs one. Create an API key on your organization's API keys page, then save\n" +
+        'it in a context of its own: "2kw context create claude-code-traces --manual", then\n' +
+        '"2kw context use claude-code-traces". Run this again, then switch back with\n' +
+        '"2kw context use <your context>".'
+    );
   }
-  return creds;
+  if (apiKey.includes("...") || /^\*+$/.test(apiKey)) {
+    fail(2, 'Your 2kw CLI printed a masked API key. Update it: "npm i -g @2kw/ai".');
+  }
+  return { apiKey, baseUrl };
 }
 
 function readSettings(path) {
@@ -116,7 +139,8 @@ function readSettings(path) {
 function writeAtomic(path, obj) {
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.2kw.tmp`;
-  writeFileSync(tmp, JSON.stringify(obj, null, 2) + "\n", "utf8");
+  // 0600: the file holds a live API key.
+  writeFileSync(tmp, JSON.stringify(obj, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
   renameSync(tmp, path);
 }
 
@@ -125,6 +149,7 @@ const mask = (k) => (k.length > 11 ? `${k.slice(0, 7)}...${k.slice(-4)}` : "sk_*
 const settings = readSettings(settingsPath);
 const prevEnv = settings.env ?? {};
 let nextEnv;
+let shownHeader;
 
 if (off) {
   // Remove every key this skill manages; keep everything else untouched.
@@ -143,7 +168,8 @@ if (off) {
   console.log(`Target: ${settingsPath}`);
   console.log(`Tier:   ${tier} — ${describeTier(tier)}`);
   console.log(`Endpoint: ${nextEnv.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}`);
-  console.log(`Auth:   Authorization=Bearer ${mask(apiKey)}`);
+  shownHeader = `Authorization=Bearer ${mask(apiKey)}`;
+  console.log(`Auth:   ${shownHeader}`);
   if (stripped.length) console.log(`Note:   removed flags not in this tier: ${stripped.join(", ")}.`);
 }
 
@@ -154,7 +180,9 @@ else next.env = nextEnv;
 
 if (dryRun) {
   console.log("\n--dry-run — resulting env block:\n");
-  console.log(JSON.stringify(next.env ?? {}, null, 2));
+  const shown = { ...next.env };
+  if (shownHeader) shown.OTEL_EXPORTER_OTLP_TRACES_HEADERS = shownHeader;
+  console.log(JSON.stringify(shown, null, 2));
   process.exit(0);
 }
 
@@ -166,8 +194,8 @@ if (off) {
   console.log("\nApplied. Two things:");
   console.log("  1. RESTART Claude Code. Telemetry env is read at process start, so this");
   console.log("     session is NOT yet exporting — the change takes effect next launch.");
-  console.log("  2. SECURITY: your API key is now in plaintext in settings.json. Issue #228");
-  console.log("     replaces this with a headers-helper script so no token is stored.");
+  console.log("  2. SECURITY: your API key is now in plaintext in settings.json. Keep that");
+  console.log("     file private: do not sync or share it.");
   if (tier === "full") {
     console.log("  3. FULL tier exports tool CONTENT — file contents Claude reads, including");
     console.log("     files you did not author. Do not use it on repos you cannot share.");
