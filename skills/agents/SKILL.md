@@ -45,7 +45,7 @@ The result is a run envelope: `status`, `mode`, `text`, `responseId`, `conversat
 
 ### Conversation mode
 
-Add `--mode plan` when the user asks the agent to look without changing anything, and `--mode ask` when the user wants to approve every call that needs approval themselves. Pass `--mode auto` only when the user names it. Never pick a mode on your own: without `--mode` the conversation keeps the mode it has. The mode is stored on the conversation, so it also applies to later runs with `--conversation` and to `decide`.
+Add `--mode plan` when the user asks the agent to look without changing anything, and `--mode ask` when the user wants to approve every call that needs approval themselves. Pass `--mode auto` only when the user names it: the automatic approver then decides reads and writes the server marks safe, and a person decides the rest. Never pick a mode on your own: without `--mode` the conversation keeps the mode it has, else the agent's default. A mode the agent does not offer is refused with `conversation_mode_not_offered`. The mode is stored on the conversation, so it also applies to later runs with `--conversation` and to `decide`.
 
 ## Branch on the exit code
 
