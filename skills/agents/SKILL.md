@@ -55,8 +55,8 @@ Add `--mode plan` when the user asks the agent to look without changing anything
 | 3 | paused for approval | Show each entry of `pendingApprovals`: `tool`, `policyClass`, `arguments`, and `reason` when present (why the request was escalated to a human). Ask the user to approve or reject each one. Then run `decide` (below). Never decide for the user. |
 | 4 | needs client tool output | Answer relayed tool calls (below). When `pendingConnections` is non-empty, tell the user what to connect first: `next` names it and the page to do it on. |
 | 5 | incomplete | Tell the user the run stopped early (`incompleteReason`, usually the tool-iteration limit) and show `text` so far. Offer to continue with `--conversation`. |
-| 2 | usage or config error | Show the error line, fix the command or file, retry once. Not for `Missing environment variables` or `… both map to AGENT_…_SECRET` (follow the secret rules below), and not for `No pending approvals` (see Decide approvals). |
-| 1 | API or network error | Show `message` from the JSON error on stderr. `status` 401 or `"error": "session_expired"` → use `2kw:init`, then retry; `status` 403 → tell the user their role lacks access (not `2kw:init`). A plain `error: unknown option …` or `error: required option …` line is a mistyped command: fix it and retry once. |
+| 2 | usage or config error | Show the error line, fix the command or file, retry once. A plain `error: unknown option …`, `error: required option …` or `error: missing required argument …` line is a mistyped command. Not for `Missing environment variables` or `… both map to AGENT_…_SECRET` (follow the secret rules below), and not for `No pending approvals` (see Decide approvals). |
+| 1 | API or network error | Show `message` from the JSON error on stderr. `status` 401 or `"error": "session_expired"` → use `2kw:init`, then retry; `status` 403 → tell the user their role lacks access (not `2kw:init`). |
 
 ## Decide approvals
 
