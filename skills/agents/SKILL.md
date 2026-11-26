@@ -1,6 +1,6 @@
 ---
 name: agents
-description: This skill should be used when the user asks to use, run, call, ask or delegate to a 2kw or Backbone agent ("use backbone agent X to do Y", "ask the invoice agent to…", "let agent X handle…", "run my 2kw agent"), or to create, configure, change, version, label or export a 2kw agent ("create an agent that…", "give agent X access to knowledge base K", "change the instructions of agent X"). Also use when a `2kw agents` command exits with code 3, 4 or 5.
+description: This skill should be used when the user asks to use, run, call, ask or delegate to a 2kw or Backbone agent ("use backbone agent X to do Y", "ask the invoice agent to…", "let agent X handle…", "run my 2kw agent"), or to create, configure, change, version, label, put live, roll back or export a 2kw agent ("create an agent that…", "give agent X access to knowledge base K", "change the instructions of agent X"). Also use when a `2kw agents` command exits with code 3, 4 or 5.
 ---
 
 # 2kw:agents
@@ -25,7 +25,7 @@ It prints one JSON object on stdout:
 
 ## Pick the agent
 
-When the user names an agent, run it by that name directly (see Run). A label can follow the name: `invoice-checker@prod` (default `latest`). Never guess a name.
+When the user names an agent, run it by that name directly (see Run). A label can follow the name: `invoice-checker@prod` (no label: `latest`, the newest save, with an API key, and Live when the CLI is signed in with the user's account; `invoice-checker@live` always runs the version users get). Never guess a name.
 
 - If the run fails with a message like `Agent not found: invoice. Did you mean: invoice-checker, invoice-archiver`, show those names and ask which one. Do not pick one yourself.
 - When the user gives no name, list candidates as a table — never with `--json`: `2kw agents list --search <term>` (or `2kw agents list --size 100` without a term). The table shows each agent's id, name and models. Show the names and ask which one.
@@ -128,6 +128,20 @@ Rules:
 - `apply` is idempotent: `unchanged` means the agent already matches the file.
 - Validation errors (exit 2) list JSON pointers such as `/tools/0/config/knowledgeBaseIds` — fix exactly those keys. `2kw agents schema` prints the full schema.
 - An agent with several models exports as `models` (an ordered list, first = default). Keep the list as it is unless the user asks to change the models.
+
+## Live: the version users get
+
+Every save is a new version and moves `latest`. Live is what users get in chat, embedded panels and scheduled tasks; by default it follows `latest`, and Go live pins it to one version.
+
+```bash
+2kw agents go-live <agent> --version <N> --note "<user's reason>" --json   # a lower N rolls back
+2kw agents follow-latest <agent> --json                                    # Live follows every save again
+2kw agents live-history <agent> --json                                     # who put what live
+```
+
+- Run these only when the user asks to put a version live, roll back or follow latest. They change what every user gets at once.
+- They need an ADMIN or OWNER role: `403` `GO_LIVE_REQUIRES_ADMIN` means the role is too low; tell the user, do not retry.
+- `409` `LIVE_CHANGED`: someone moved Live meanwhile. Tell the user what Live is now (`2kw agents live-history <agent> --json`) and ask before running it again.
 
 ## Secrets
 
