@@ -51,12 +51,17 @@ hitlPolicy:
   default: approve               # allow | approve | block | deny (only tightens)
   classes:
     read: allow                  # allow | auto | approve | block | deny
-    write: approve               # auto | approve | block | deny   (never allow)
-    destructive: block           # block | deny                    (never allow, auto or approve)
+    write: approve               # allow | approve | block | deny  (allow: see below)
+    destructive: block           # approve | block | deny          (never allow)
   tools:                         # keys: exact tool names or * globs (case-sensitive); values lowercase
     "lookup_*": read             # glob → read | write | destructive (class) or approve | auto | deny (action)
     "delete_*": deny
+    "erp_post_invoice": allow    # exact name only → allow | ask: the tool's own level (see below)
+  connectors:                    # per server_label → read | write | destructive: approve | block
+    erp: { write: block }
 ```
+
+Where the deployment offers Always allow, `write: allow`, an exact tool rule `allow` or `ask`, and `connectors` loosen the policy; elsewhere they are refused on save. The most specific level wins: a tool's own level over its connector's, a connector's over `classes`. It never beats a matching `deny` or `block`, Plan mode, a matching `approve` rule, a tool that always needs a person, or the built-in `Bash`. `apply` writes the policy as a new version, which records who saved it.
 
 `approve` pauses the run for a human (exit 3). `auto` lets the platform's auto-approver decide; until it is enabled it pauses like `approve`. `block` and `deny` refuse the call; the model is told. An `auto` rule may not match a destructive tool.
 
